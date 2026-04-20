@@ -186,6 +186,33 @@ export class OfferService {
     });
   }
 
+  async listByListing(listingId: string, sellerUserId: string) {
+    const listing = await this.prisma.listing.findUnique({ where: { id: listingId } });
+    if (!listing) throw new Error("LISTING_NOT_FOUND");
+    if (listing.sellerUserId !== sellerUserId) throw new Error("FORBIDDEN");
+
+    return this.prisma.offer.findMany({
+      where: { listingId },
+      orderBy: { createdAt: "desc" },
+      include: { buyer: { include: { profile: true } } },
+    });
+  }
+
+  async rejectOffer(sellerUserId: string, offerId: string) {
+    const offer = await this.prisma.offer.findUnique({
+      where: { id: offerId },
+      include: { listing: true },
+    });
+    if (!offer) throw new Error("OFFER_NOT_FOUND");
+    if (offer.listing.sellerUserId !== sellerUserId) throw new Error("NOT_YOUR_LISTING");
+    if (offer.status !== "SUBMITTED") throw new Error("OFFER_NOT_SUBMITTED");
+
+    return this.prisma.offer.update({
+      where: { id: offerId },
+      data: { status: "REJECTED" },
+    });
+  }
+
   /** Simula webhook de BaaS: deposito do sinal completo (somente MVP / ambiente de demo). */
   async simulateEscrowFunding(offerId: string, userId: string) {
     const offer = await this.prisma.offer.findUnique({

@@ -131,5 +131,38 @@ export const buildListingRoutes = (
     return res.status(200).json({ listing: serializeListing(row) });
   });
 
+  router.get(
+    "/:listingId/offers",
+    requireAuth(authService),
+    requireRole("SELLER"),
+    async (req, res) => {
+      try {
+        const sellerUserId = req.user?.id;
+        if (!sellerUserId) return res.status(401).json({ message: "Unauthorized" });
+
+        const offers = await offerService.listByListing(String(req.params.listingId), sellerUserId);
+        return res.status(200).json({
+          offers: offers.map((o) => ({
+            id: o.id,
+            buyerUserId: o.buyerUserId,
+            buyerName: o.buyer.profile?.fullName ?? null,
+            offerPrice: o.offerPrice.toString(),
+            earnestMoney: o.earnestMoney.toString(),
+            status: o.status,
+            createdAt: o.createdAt.toISOString(),
+          })),
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === "LISTING_NOT_FOUND") {
+          return res.status(404).json({ message: "Listing not found" });
+        }
+        if (error instanceof Error && error.message === "FORBIDDEN") {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+        return res.status(500).json({ message: "Unexpected error" });
+      }
+    },
+  );
+
   return router;
 };

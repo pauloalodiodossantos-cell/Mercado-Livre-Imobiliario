@@ -89,6 +89,32 @@ export const buildOfferRoutes = (authService: AuthService, offerService: OfferSe
   });
 
   router.post(
+    "/:offerId/reject",
+    requireAuth(authService),
+    requireRole("SELLER"),
+    async (req, res) => {
+      try {
+        const sellerId = req.user?.id;
+        if (!sellerId) return res.status(401).json({ message: "Unauthorized" });
+
+        await offerService.rejectOffer(sellerId, String(req.params.offerId));
+        return res.status(200).json({ message: "Offer rejected" });
+      } catch (error) {
+        if (error instanceof Error && error.message === "OFFER_NOT_FOUND") {
+          return res.status(404).json({ message: "Offer not found" });
+        }
+        if (error instanceof Error && error.message === "NOT_YOUR_LISTING") {
+          return res.status(403).json({ message: "Forbidden" });
+        }
+        if (error instanceof Error && error.message === "OFFER_NOT_SUBMITTED") {
+          return res.status(400).json({ message: "Offer cannot be rejected" });
+        }
+        return res.status(500).json({ message: "Unexpected error" });
+      }
+    },
+  );
+
+  router.post(
     "/:offerId/accept",
     requireAuth(authService),
     requireRole("SELLER"),
