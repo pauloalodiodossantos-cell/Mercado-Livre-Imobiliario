@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "node16",
+    "rootDir": ".",
+    "outDir": "dist",
+    "strict": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node", "jest"],
+    "resolveJsonModule": true
+  },
+  "include": ["src", "tests"],
+  "exclude": ["node_modules", "dist"]
+}

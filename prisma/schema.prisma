@@ -1,0 +1,235 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(BUYER)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  profile      Profile?
+  properties   Property[]
+  listings     Listing[]
+  offers       Offer[]
+}
+
+model Profile {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  fullName   String
+  cpfCnpj    String   @unique
+  phone      String?
+  kycStatus  KycStatus @default(PENDING)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum UserRole {
+  BUYER
+  SELLER
+  BROKER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum KycStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model Property {
+  id           String   @id @default(cuid())
+  sellerUserId String
+  propertyType String
+  addressLine1 String
+  city         String
+  state        String
+  zipCode      String
+  areaM2       Float?
+  bedrooms     Int?
+  parkingSpots Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  seller   User      @relation(fields: [sellerUserId], references: [id], onDelete: Cascade)
+  listings Listing[]
+}
+
+model Listing {
+  id           String        @id @default(cuid())
+  propertyId   String
+  sellerUserId String
+  askingPrice  Decimal       @db.Decimal(14, 2)
+  status       ListingStatus @default(DRAFT)
+  publishedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  property           Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  seller             User                @relation(fields: [sellerUserId], references: [id], onDelete: Cascade)
+  valuationSnapshot  ValuationSnapshot?
+  offers             Offer[]
+}
+
+enum ListingStatus {
+  DRAFT
+  PUBLISHED
+  RESERVED
+  UNDER_OFFER
+  CLOSED
+  CANCELLED
+}
+
+model ValuationSnapshot {
+  id                     String   @id @default(cuid())
+  listingId              String   @unique
+  modelVersion           String   @default("mvp-1")
+  estimatedRentMonthly   Decimal? @db.Decimal(14, 2)
+  annualRentEstimate     Decimal  @db.Decimal(14, 2)
+  capRatePct             Decimal  @db.Decimal(10, 4)
+  irrEstimatePct         Decimal  @db.Decimal(10, 4)
+  regionalPriceCeiling   Decimal  @db.Decimal(14, 2)
+  discountVsCeilingPct   Decimal  @db.Decimal(10, 4)
+  confidence             Decimal  @db.Decimal(4, 3)
+  inputsJson             Json
+  createdAt              DateTime @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+}
+
+model Offer {
+  id           String      @id @default(cuid())
+  listingId    String
+  buyerUserId  String
+  offerPrice   Decimal     @db.Decimal(14, 2)
+  earnestMoney Decimal     @db.Decimal(14, 2)
+  status       OfferStatus @default(SUBMITTED)
+  expiresAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listing            Listing             @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyer              User                @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  dueDiligenceCase   DueDiligenceCase?
+  contract           Contract?
+  escrowAccount      EscrowAccount?
+
+  @@index([listingId])
+  @@index([buyerUserId])
+}
+
+enum OfferStatus {
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  WITHDRAWN
+}
+
+model DueDiligenceCase {
+  id        String       @id @default(cuid())
+  offerId   String       @unique
+  status    DdCaseStatus @default(APPROVED)
+  riskScore Int          @default(12)
+  summary   String       @default("Stub: certidoes e matricula simuladas via integracao futura.")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  offer  Offer     @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  checks DdCheck[]
+}
+
+enum DdCaseStatus {
+  PENDING
+  RUNNING
+  APPROVED
+  FLAGGED
+  FAILED
+}
+
+model DdCheck {
+  id            String   @id @default(cuid())
+  caseId        String
+  checkType     String
+  status        String
+  resultSummary String?
+  createdAt     DateTime @default(now())
+
+  case DueDiligenceCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+}
+
+model Contract {
+  id           String         @id @default(cuid())
+  offerId      String         @unique
+  status       ContractStatus @default(DRAFT)
+  bodyMarkdown String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  offer Offer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+}
+
+enum ContractStatus {
+  DRAFT
+  SENT_FOR_SIGNATURE
+  SIGNED
+  VOIDED
+}
+
+model EscrowAccount {
+  id             String       @id @default(cuid())
+  offerId        String       @unique
+  status         EscrowStatus @default(PENDING_FUNDING)
+  targetAmount   Decimal      @db.Decimal(14, 2)
+  fundedAmount   Decimal      @default(0) @db.Decimal(14, 2)
+  provider       String       @default("baas_stub")
+  externalRef    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  offer       Offer             @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  milestones  EscrowMilestone[]
+}
+
+enum EscrowStatus {
+  PENDING_FUNDING
+  FUNDED
+  RELEASED
+  REFUNDED
+}
+
+model EscrowMilestone {
+  id              String   @id @default(cuid())
+  escrowAccountId String
+  milestoneType   String
+  status          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  escrowAccount EscrowAccount @relation(fields: [escrowAccountId], references: [id], onDelete: Cascade)
+
+  @@index([escrowAccountId])
+}
