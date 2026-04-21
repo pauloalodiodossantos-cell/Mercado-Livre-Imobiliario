@@ -1,4 +1,6 @@
 import express from "express";
+import cors from "cors";
+import helmet from "helmet";
 import type { PrismaClient } from "@prisma/client";
 import { buildAuthRoutes } from "./auth/auth-routes";
 import { AuthService } from "./auth/auth-service";
@@ -10,6 +12,8 @@ import { buildOfferRoutes } from "./offers/offer-routes";
 export const createApp = (prisma: PrismaClient): express.Express => {
   const app = express();
 
+  app.use(helmet({ contentSecurityPolicy: false }));
+  app.use(cors({ origin: "*" }));
   app.use(express.json());
 
   const authService = new AuthService(prisma, process.env.JWT_SECRET ?? "dev-secret-change-me");
